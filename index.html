@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Video Downloader - 유튜브 영상 다운로더</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    .yt-gradient {
+      background: linear-gradient(135deg, #ff0033 0%, #cc0000 100%);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl yt-gradient flex items-center justify-center text-white shadow-md shadow-red-200">
+          <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            YouTube Downloader
+            <span class="text-xs bg-red-100 text-red-600 font-semibold px-2 py-0.5 rounded-full">Fast & Free</span>
+          </h1>
+          <p class="text-xs text-slate-500">초고화질 비디오(최대 4K) & MP3 음원 다운로드</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 space-y-6">
+
+    <!-- 1. URL 입력 카드 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        유튜브 영상 링크 입력 (일반 동영상, 쇼츠 Shorts, 재생목록)
+      </label>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <i data-lucide="link" class="w-5 h-5"></i>
+          </div>
+          <input 
+            type="text" 
+            id="urlInput"
+            placeholder="https://www.youtube.com/watch?v=... 또는 https://youtu.be/..." 
+            class="w-full pl-11 pr-24 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition"
+            onkeydown="if(event.key === 'Enter') fetchVideoInfo()"
+          >
+          <button 
+            type="button" 
+            onclick="pasteClipboard()"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-md transition"
+          >
+            붙여넣기
+          </button>
+        </div>
+        <button 
+          id="btnFetch"
+          onclick="fetchVideoInfo()"
+          class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl flex items-center justify-center space-x-2 shadow-sm transition disabled:opacity-50"
+        >
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span>영상 정보 확인</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. 로딩 스피너 -->
+    <div id="loadingCard" class="hidden bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+      <div class="inline-block animate-spin text-red-600">
+        <i data-lucide="loader-2" class="w-8 h-8"></i>
+      </div>
+      <p class="text-sm font-medium text-slate-600">영상 정보와 해상도를 분석하고 있습니다...</p>
+    </div>
+
+    <!-- 3. 영상 정보 & 다운로드 옵션 카드 -->
+    <div id="videoInfoCard" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300">
+      <div class="p-6 md:p-8 flex flex-col md:flex-row gap-6">
+        
+        <!-- 썸네일 -->
+        <div class="relative w-full md:w-80 h-48 bg-slate-900 rounded-xl overflow-hidden flex-shrink-0 shadow-inner group">
+          <img id="videoThumb" src="" alt="Thumbnail" class="w-full h-full object-cover">
+          <div class="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono font-medium">
+            <span id="videoDuration">00:00</span>
+          </div>
+          <div id="playlistBadge" class="hidden absolute top-2 left-2 bg-red-600 text-white text-xs px-2.5 py-1 rounded-md font-bold flex items-center gap-1 shadow">
+            <i data-lucide="list-music" class="w-3.5 h-3.5"></i>
+            <span id="playlistCountText">재생목록</span>
+          </div>
+        </div>
+
+        <!-- 메타데이터 & 다운로드 설정 -->
+        <div class="flex-1 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-red-600 uppercase tracking-wide mb-1">
+              <i data-lucide="youtube" class="w-4 h-4"></i>
+              <span id="videoChannel">채널명</span>
+            </div>
+            <h2 id="videoTitle" class="text-lg md:text-xl font-bold text-slate-900 leading-snug line-clamp-2">
+              영상 제목이 여기에 표시됩니다.
+            </h2>
+          </div>
+
+          <!-- 화질 및 포맷 선택 -->
+          <div class="space-y-3 pt-2">
+            <label class="block text-xs font-bold text-slate-600 tracking-wider uppercase">
+              다운로드 화질 / 포맷 선택
+            </label>
+            <div id="resolutionOptions" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <!-- JS 동적 생성 -->
+            </div>
+          </div>
+
+          <!-- 다운로드 버튼 -->
+          <div class="pt-2">
+            <button 
+              id="btnStartDownload"
+              onclick="startDownload()"
+              class="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl flex items-center justify-center space-x-2 shadow-md shadow-red-200 hover:shadow-lg transition transform active:scale-[0.99]"
+            >
+              <i data-lucide="download" class="w-5 h-5"></i>
+              <span class="text-base">다운로드 시작</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 실시간 다운로드 진행 카드 -->
+    <div id="progressCard" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div id="progressIcon" class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center animate-pulse">
+            <i data-lucide="arrow-down" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="progressTitle" class="text-sm font-bold text-slate-800">영상 다운로드 중...</h3>
+            <p id="progressSubtitle" class="text-xs text-slate-500">잠시만 기다려 주세요.</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <span id="progressPercent" class="text-2xl font-black text-slate-900">0%</span>
+        </div>
+      </div>
+
+      <!-- 프로그레스 바 -->
+      <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
+        <div id="progressBar" class="bg-red-600 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+      </div>
+
+      <!-- 상세 정보 (속도, 남은시간, 파일명) -->
+      <div class="flex items-center justify-between text-xs text-slate-500 pt-1">
+        <div class="flex items-center space-x-3">
+          <span id="progressSpeed" class="flex items-center space-x-1">
+            <i data-lucide="gauge" class="w-3.5 h-3.5"></i>
+            <span>0 MB/s</span>
+          </span>
+          <span id="progressEta" class="flex items-center space-x-1">
+            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            <span>계산 중...</span>
+          </span>
+        </div>
+        <div id="progressFilename" class="font-mono text-slate-700 truncate max-w-xs"></div>
+      </div>
+
+      <!-- 완료 액션 (다운로드 완료 시 노출) -->
+      <div id="completeActions" class="hidden pt-3 flex flex-col sm:flex-row items-center gap-3">
+        <a id="btnDownloadToDevice" href="#" download class="w-full sm:flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold rounded-xl flex items-center justify-center space-x-2 shadow-md shadow-emerald-200 transition">
+          <i data-lucide="download" class="w-5 h-5"></i>
+          <span>내 기기(스마트폰/PC)로 파일 저장</span>
+        </a>
+        <button onclick="resetDownloader()" class="w-full sm:w-auto px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition">
+          다른 영상 다운로드
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 하단 풋터 -->
+  <footer class="mt-auto py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-400">
+    <p>YouTube Downloader &bull; 고화질 비디오 및 MP3 다운로드 서비스</p>
+  </footer>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <script>
+    // 전역 상태
+    let currentVideoMeta = null;
+    let selectedQuality = "best";
+    let activeTaskId = null;
+    let pollInterval = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center space-x-2 transition-all transform duration-300 translate-y-2 opacity-0 ${
+        type === "error" ? "bg-red-600 text-white" :
+        type === "success" ? "bg-emerald-600 text-white" :
+        "bg-slate-800 text-white"
+      }`;
+      
+      const iconName = type === "error" ? "alert-circle" : type === "success" ? "check-circle" : "info";
+      toast.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 flex-shrink-0"></i><span>${message}</span>`;
+      container.appendChild(toast);
+      lucide.createIcons({ root: toast });
+
+      requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      });
+
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    async function pasteClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          document.getElementById("urlInput").value = text.trim();
+          fetchVideoInfo();
+        }
+      } catch (err) {
+        showToast("클립보드 접근 권한이 필요합니다. 직접 붙여넣기(Ctrl+V) 해주세요.", "info");
+      }
+    }
+
+    async function fetchVideoInfo() {
+      const url = document.getElementById("urlInput").value.trim();
+      if (!url) {
+        showToast("유튜브 링크를 입력해주세요.", "error");
+        document.getElementById("urlInput").focus();
+        return;
+      }
+
+      // UI 상태 변경
+      document.getElementById("loadingCard").classList.remove("hidden");
+      document.getElementById("videoInfoCard").classList.add("hidden");
+      document.getElementById("progressCard").classList.add("hidden");
+      document.getElementById("btnFetch").disabled = true;
+
+      try {
+        const res = await fetch("/api/info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "영상 정보를 가져올 수 없습니다.");
+        }
+
+        const data = await res.json();
+        currentVideoMeta = data;
+        renderVideoInfo(data);
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        document.getElementById("loadingCard").classList.add("hidden");
+        document.getElementById("btnFetch").disabled = false;
+      }
+    }
+
+    function renderVideoInfo(meta) {
+      document.getElementById("videoThumb").src = meta.thumbnail || "";
+      document.getElementById("videoTitle").textContent = meta.title;
+      document.getElementById("videoChannel").textContent = meta.channel;
+      document.getElementById("videoDuration").textContent = meta.duration_str;
+
+      const playlistBadge = document.getElementById("playlistBadge");
+      if (meta.is_playlist) {
+        playlistBadge.classList.remove("hidden");
+        document.getElementById("playlistCountText").textContent = `재생목록 (${meta.playlist_count}개)`;
+      } else {
+        playlistBadge.classList.add("hidden");
+      }
+
+      // 해상도 옵션 렌더링
+      const resContainer = document.getElementById("resolutionOptions");
+      resContainer.innerHTML = "";
+
+      const options = [
+        { id: "best", label: "최고 화질 (MP4)", desc: "원본 최고 해상도 자동", badge: "추천" },
+        { id: "1080p", label: "1080p FHD", desc: "Full HD 고화질" },
+        { id: "720p", label: "720p HD", desc: "표준 HD 화질" },
+        { id: "audio", label: "MP3 오디오", desc: "음원만 고음질 추출", badge: "음악" }
+      ];
+
+      selectedQuality = "best";
+      options.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.id = opt.id;
+        btn.className = `p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+          opt.id === selectedQuality 
+            ? "border-red-500 bg-red-50/50 text-red-950 ring-2 ring-red-400" 
+            : "border-slate-200 hover:border-slate-300 bg-white text-slate-700"
+        }`;
+        
+        btn.innerHTML = `
+          <div class="flex items-center justify-between w-full mb-1">
+            <span class="font-bold text-sm">${opt.label}</span>
+            ${opt.badge ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${opt.id === 'best' ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-700'}">${opt.badge}</span>` : ''}
+          </div>
+          <span class="text-[11px] text-slate-500">${opt.desc}</span>
+        `;
+
+        btn.onclick = () => {
+          selectedQuality = opt.id;
+          document.querySelectorAll("#resolutionOptions button").forEach(b => {
+            b.className = "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between border-slate-200 hover:border-slate-300 bg-white text-slate-700";
+          });
+          btn.className = "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between border-red-500 bg-red-50/50 text-red-950 ring-2 ring-red-400";
+        };
+
+        resContainer.appendChild(btn);
+      });
+
+      document.getElementById("videoInfoCard").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    async function startDownload() {
+      if (!currentVideoMeta) return;
+
+      const url = currentVideoMeta.url;
+      const quality = selectedQuality;
+
+      // UI 설정
+      document.getElementById("btnStartDownload").disabled = true;
+      document.getElementById("progressCard").classList.remove("hidden");
+      document.getElementById("completeActions").classList.add("hidden");
+      document.getElementById("progressPercent").textContent = "0%";
+      document.getElementById("progressBar").style.width = "0%";
+      document.getElementById("progressBar").className = "bg-red-600 h-full rounded-full transition-all duration-200";
+      document.getElementById("progressTitle").textContent = "영상 다운로드 준비 중...";
+      document.getElementById("progressSubtitle").textContent = "서버에서 영상을 요청하고 있습니다.";
+      document.getElementById("progressSpeed").querySelector("span").textContent = "연결 중...";
+      document.getElementById("progressEta").querySelector("span").textContent = "";
+      document.getElementById("progressFilename").textContent = "";
+
+      document.getElementById("progressCard").scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      try {
+        const res = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, quality })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "다운로드 요청 실패");
+        }
+
+        const data = await res.json();
+        activeTaskId = data.task_id;
+        startPollingProgress(activeTaskId);
+      } catch (err) {
+        showToast(err.message, "error");
+        document.getElementById("btnStartDownload").disabled = false;
+      }
+    }
+
+    function startPollingProgress(taskId) {
+      if (pollInterval) clearInterval(pollInterval);
+
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/progress/${taskId}`);
+          if (!res.ok) return;
+
+          const data = await res.json();
+          
+          if (data.status === "downloading") {
+            document.getElementById("progressTitle").textContent = "영상 다운로드 중...";
+            document.getElementById("progressSubtitle").textContent = "유튜브 서버로부터 데이터 수신 중";
+            document.getElementById("progressPercent").textContent = `${data.percent}%`;
+            document.getElementById("progressBar").style.width = `${data.percent}%`;
+            if (data.speed) {
+              document.getElementById("progressSpeed").querySelector("span").textContent = data.speed;
+            }
+            if (data.eta) {
+              document.getElementById("progressEta").querySelector("span").textContent = data.eta;
+            }
+            if (data.filename) {
+              document.getElementById("progressFilename").textContent = data.filename;
+            }
+          } else if (data.status === "finished") {
+            document.getElementById("progressTitle").textContent = "비디오/오디오 변환 중...";
+            document.getElementById("progressSubtitle").textContent = "FFmpeg 무손실 고화질 파일 생성 중";
+            document.getElementById("progressPercent").textContent = "99%";
+            document.getElementById("progressBar").style.width = "99%";
+          } else if (data.status === "completed") {
+            clearInterval(pollInterval);
+            document.getElementById("progressTitle").textContent = "다운로드 완료!";
+            document.getElementById("progressSubtitle").textContent = "아래 버튼을 눌러 내 기기에 저장하세요.";
+            document.getElementById("progressPercent").textContent = "100%";
+            document.getElementById("progressBar").style.width = "100%";
+            document.getElementById("progressBar").className = "bg-emerald-500 h-full rounded-full";
+            
+            const dlBtn = document.getElementById("btnDownloadToDevice");
+            if (data.filename) {
+              dlBtn.href = `/api/download-file/${encodeURIComponent(data.filename)}`;
+              dlBtn.setAttribute("download", data.filename);
+            }
+            document.getElementById("completeActions").classList.remove("hidden");
+            document.getElementById("btnStartDownload").disabled = false;
+            
+            showToast("파일이 준비되었습니다! 기기로 저장해주세요.", "success");
+          } else if (data.status === "error") {
+            clearInterval(pollInterval);
+            document.getElementById("progressTitle").textContent = "다운로드 실패";
+            document.getElementById("progressSubtitle").textContent = data.error || "오류가 발생했습니다.";
+            document.getElementById("progressBar").className = "bg-red-500 h-full rounded-full";
+            document.getElementById("btnStartDownload").disabled = false;
+            showToast(`다운로드 오류: ${data.error}`, "error");
+          }
+        } catch (e) {
+          console.error("진행률 확인 중 오류:", e);
+        }
+      }, 700);
+    }
+
+    function resetDownloader() {
+      document.getElementById("urlInput").value = "";
+      document.getElementById("videoInfoCard").classList.add("hidden");
+      document.getElementById("progressCard").classList.add("hidden");
+      currentVideoMeta = null;
+      document.getElementById("urlInput").focus();
+    }
+  </script>
+</body>
+</html>
