@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+
+# Downloads folder (영상 파일 제외)
+downloads/
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.m4a
+
+# Binaries
+cloudflared.exe
+*.exe
+
+# Logs
+*.log
